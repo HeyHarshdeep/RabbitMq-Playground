@@ -1,6 +1,7 @@
 ﻿using RabbitMQ.Client;
 using System.Text;
 using System;
+using System.Threading;
 using RabbitMQ.Client.Events;
 
 var factory = new ConnectionFactory
@@ -14,6 +15,9 @@ var factory = new ConnectionFactory
 using var connection = factory.CreateConnection();
 using var channel = connection.CreateModel();
 
+// Declare the fanout exchange used by producer/consumers
+channel.ExchangeDeclare(exchange: "weather_fanout", type: ExchangeType.Fanout, durable: false, autoDelete: false, arguments: null);
+
 Console.WriteLine("Please enter queue name");
 var queueName = Console.ReadLine();
 
@@ -23,25 +27,13 @@ channel.QueueDeclare(queue: queueName,
     autoDelete: false,
     arguments: null);
 
-Console.WriteLine("Enter Routing Keys");
-var routingKey = Console.ReadLine();
-var routingKeys = routingKey.Split(",", StringSplitOptions.RemoveEmptyEntries);
 
-if (routingKeys.Any())
-{
-    foreach (var key in routingKeys)
-    {
-        channel.QueueBind(queueName, "weather_direct", key);
-    }
-}
-else
-{
-    channel.QueueBind(queueName, "weather_direct", string.Empty);
-}
+// For fanout exchanges the routing key is ignored; bind the queue to the exchange
+channel.QueueBind(queueName, "weather_fanout", string.Empty);
 
 channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
 
-Console.WriteLine(" [*] Waiting for messages.");
+Console.WriteLine(" [*] Waiting for messages (fanout exchange).");
 
 var consumer = new EventingBasicConsumer(channel);
 consumer.Received += (model, ea) =>
@@ -50,6 +42,7 @@ consumer.Received += (model, ea) =>
     var message = Encoding.UTF8.GetString(body);
     Console.WriteLine($" [x] Received {message}");
 
+    //this are just for some testing and has no relation with fanout
     if (message.Contains("exception"))
     {
         Console.WriteLine("Error in processing");

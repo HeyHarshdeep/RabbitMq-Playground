@@ -13,13 +13,9 @@ var factory = new ConnectionFactory
 using var connection = factory.CreateConnection();
 using var channel = connection.CreateModel();
 
-//channel.QueueDeclare(queue: "hello",
-//    durable: false,
-//    exclusive: false,
-//    autoDelete: false,
-//    arguments: null);
-var exchangeName = "weather_direct";
-channel.ExchangeDeclare(exchangeName, ExchangeType.Direct);
+
+var exchangeName = "weather_fanout";
+channel.ExchangeDeclare(exchangeName, ExchangeType.Fanout);
 
 string? message = null;
 do
@@ -27,19 +23,17 @@ do
     Console.WriteLine("Enter Message. Press [enter] to exit.");
     message = Console.ReadLine();
 
-    Console.WriteLine("Please enter your routing key");
-    var routingKey = Console.ReadLine();
 
     if (!string.IsNullOrEmpty(message))
-        SendMessage(channel, message, routingKey ?? string.Empty);
+        SendMessage(channel, message);
 } while (!string.IsNullOrEmpty(message));
 
-void SendMessage(IModel channel, string message, string routingKey)
+void SendMessage(IModel channel, string message)
 {
     var body = Encoding.UTF8.GetBytes(message);
 
     channel.BasicPublish(exchange: exchangeName,
-        routingKey: routingKey,
+        routingKey: string.Empty,
         basicProperties: null,
         body: body);
     Console.WriteLine($" [x] Sent {message}");

@@ -1,58 +1,73 @@
-# 🐰 RabbitMQ Playground
+RabbitMQ Direct Exchange (Compact Reference)
 
-A comprehensive .NET reference repository demonstrating key messaging patterns, dispatching modes, exchange types, and integration libraries using **RabbitMQ** and **MassTransit**. Designed to show[...]
+Overview
+- RabbitMQ is a message broker that routes messages from producers to consumers via exchanges and queues.
+- A direct exchange routes messages to queues based on exact matching of a routing key.
 
----
+Direct exchange (quick summary)
+- Exchange type: `direct`.
+- Routing behaviour: messages published with routing key `k` are delivered to all queues bound to the exchange with the same routing key `k`.
+- Useful for: targeted delivery, multiple queues listening for specific keys (e.g., `sydney`, `brisbane`).
 
-### 📚 What is RabbitMQ?
+Project: RabbitMq-Playground (Direct exchange example)
+This repository contains a set of small console apps and examples demonstrating RabbitMQ usage across different exchange types and dispatch modes:
+- `Send` — a producer that publishes messages with a routing key.
+- `Receive` — a consumer that declares a queue, binds it to the `weather_direct` exchange with one or more routing keys, and processes messages.
 
-[RabbitMQ](https://www.rabbitmq.com/) is an open-source, light-weight message broker that supports multiple messaging protocols. It acts as an intermediary for efficiently routing, storing, and del[...]
+Repository structure & topic → branch mapping
+Each topic/example lives on its own branch. Use the links below to jump directly to the branch that contains the example code and README for that topic.
 
-> 📖 **Official Documentation:** [RabbitMQ Official Documentation](https://www.rabbitmq.com/docs)
+- 1-getting-started — master
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/master
+  - Covers basic connectivity, producer/consumer setups and initial examples.
 
----
+- 2-consumer-acknowledgements — Consumer-Ackowledge
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/Consumer-Ackowledge
+  - Demonstrates manual vs automatic acknowledgements (ACK / NACK / Reject).
 
-### 📂 Repository Structure & Key Topic Branches
+- 3-message-dispatching-modes — Message-Dispatching-Modes
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/Message-Dispatching-Modes
+  - Implements work queues, fair dispatch and prefetch settings.
 
-This repository is organized into distinct branches, each focusing on a specific RabbitMQ architectural concept or exchange type:
+- 4-direct-exchange — Direct-Exchange-Type-3
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/Direct-Exchange-Type-3
+  - Demonstrates direct routing by exact routing key (the direct-exchange example described here).
 
-* **[1-getting-started](/HeyHarshdeep/RabbitMq-Playground/tree/master)** — *RabbitMQ & .NET Fundamentals*
-  * Covers basic connectivity, producer/consumer setups, and establishing initial channels.
-  * 📘 **Docs:** [RabbitMQ .NET Client Tutorial](https://www.rabbitmq.com/tutorials/tutorial-one-dotnet)
+- 5-fanout-exchange — Fanout-Exchange-Type-4
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/Fanout-Exchange-Type-4
+  - Demonstrates publish/subscribe broadcast behavior.
 
-* **[2-consumer-acknowledgements](/HeyHarshdeep/RabbitMq-Playground/tree/Consumer-Ackowledge)** — *Reliability & Message Delivery*
-  * Demonstrates manual vs. automatic acknowledgements (ACK / NACK / Reject) for message safety.
-  * 📘 **Docs:** [Consumer Acknowledgements Guide](https://www.rabbitmq.com/docs/confirms)
+- 6-topic-exchange — Topic-Exchange-Type-4
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/Topic-Exchange-Type-4
+  - Demonstrates wildcard/pattern-based routing.
 
-* **[3-message-dispatching-modes](/HeyHarshdeep/RabbitMq-Playground/tree/Message-Dispatching-Modes)** — *Work Queues & Load Distribution*
-  * Implements round-robin dispatching and fair dispatching (`basicQos` prefetch configurations).
-  * 📘 **Docs:** [Work Queues Tutorial](https://www.rabbitmq.com/tutorials/tutorial-two-dotnet)
+- 7-headers-exchange — Header-Exchange-Type-4
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/Header-Exchange-Type-4
+  - Demonstrates attribute-based routing using headers.
 
-* **[4-direct-exchange](/HeyHarshdeep/RabbitMq-Playground/tree/Direct-Exchange-Type-3)** — *Direct Routing by Key*
-  * Demonstrates unicast message delivery based on exact matching routing keys.
-  * 📘 **Docs:** [Direct Exchange Tutorial](https://www.rabbitmq.com/tutorials/tutorial-four-dotnet)
+- 8-masstransit — master
+  - Link: https://github.com/HeyHarshdeep/RabbitMq-Playground/tree/master
+  - Integrations and examples using MassTransit on top of RabbitMQ.
 
-* **[5-fanout-exchange](/HeyHarshdeep/RabbitMq-Playground/tree/Fanout-Exchange-Type-4)** — *Publish/Subscribe (Broadcast)*
-  * Demonstrates broadcasting messages to all bound queues simultaneously regardless of routing key.
-  * 📘 **Docs:** [Fanout Exchange Tutorial](https://www.rabbitmq.com/tutorials/tutorial-three-dotnet)
+How to run & test (concise)
+1. Ensure RabbitMQ is running locally (management UI on 15672, broker on 5672).
+2. Open multiple terminals to simulate different consumers.
+3. In each consumer terminal:
+   - cd Receive
+   - dotnet run
+   - Enter a unique queue name and comma-separated routing keys.
+4. In a producer terminal:
+   - cd Send
+   - dotnet run
+   - Enter routing key and message text.
 
-* **[6-topic-exchange](/HeyHarshdeep/RabbitMq-Playground/tree/Topic-Exchange-Type-4)** — *Pattern-Based Routing*
-  * Demonstrates wildcard routing (`*` and `#`) for selective publish-subscribe filtering.
-  * 📘 **Docs:** [Topic Exchange Tutorial](https://www.rabbitmq.com/tutorials/tutorial-five-dotnet)
+Notes / tips
+- Exchange name in code: `weather_direct`. Producer must publish to the same exchange.
+- For production set durable queues/exchanges and persistent messages; consider dead-lettering and retries.
+- Consumer prefetch (BasicQos) and manual ACK/Reject handling are demonstrated in the consumer sample.
 
-* **[7-headers-exchange](/HeyHarshdeep/RabbitMq-Playground/tree/Header-Exchange-Type-4)** — *Attribute-Based Routing*
-  * Demonstrates message routing using header attributes instead of routing keys (`x-match: all/any`).
-  * 📘 **Docs:** [Headers Exchange Guide](https://www.rabbitmq.com/docs/exchanges#headers)
+Minimal file references
+- Receive/Receive.cs — consumer implementation.
+- Send/Send.cs — producer implementation.
 
-* **[8-masstransit](/HeyHarshdeep/RabbitMq-Playground/tree/master)** — *Distributed Application Framework*
-  * Integrates [MassTransit](https://masstransit.io/) abstraction over RabbitMQ for production-grade event-driven microservices.
-  * 📘 **Docs:** [MassTransit RabbitMQ Documentation](https://masstransit.io/documentation/transports/rabbitmq)
-
----
-
-### 💻 Tech Stack & Tools
-
-* **Language/Framework:** .NET 8 / C#
-* **Message Broker:** RabbitMQ / Amazon MQ
-* **Abstraction Framework:** MassTransit
-* **Client SDK:** `RabbitMQ.Client`
+This document is intentionally concise — keep it at the repo root for quick reference.

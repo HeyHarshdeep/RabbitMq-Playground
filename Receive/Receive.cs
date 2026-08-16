@@ -21,6 +21,8 @@ channel.QueueDeclare(queue: "hello",
     autoDelete: false,
     arguments: null);
 
+channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
+
 Console.WriteLine(" [*] Waiting for messages.");
 
 var consumer = new EventingBasicConsumer(channel);
@@ -36,6 +38,10 @@ consumer.Received += (model, ea) =>
         channel.BasicReject(ea.DeliveryTag, false);
         throw new Exception("Error in processing");
     }
+
+    if (int.TryParse(message, out var delayTime))
+        Thread.Sleep(delayTime);
+
 
     Console.WriteLine($"Processed messaege {message}");
     channel.BasicAck(deliveryTag: ea.DeliveryTag, false);

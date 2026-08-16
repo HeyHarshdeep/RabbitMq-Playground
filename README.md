@@ -1,82 +1,56 @@
-RabbitMQ  Direct Exchange (Compact Reference)
+# RabbitMq-Playground — Topic Exchange Example
 
-Overview
-- RabbitMQ is a message broker that routes messages from producers to consumers via exchanges and queues.
-- A direct exchange routes messages to queues based on exact matching of a routing key.
+This repository demonstrates RabbitMQ Topic Exchange usage with two small .NET 8 console apps:
 
-Direct exchange (quick summary)
-- Exchange type: `direct`.
-- Routing behaviour: messages published with routing key `k` are delivered to all queues bound to the exchange with the same routing key `k`.
-- Useful for: targeted delivery, multiple queues listening for specific keys (e.g., `sydney`, `brisbane`).
+- `Send/Send.cs` — publisher that sends messages to a topic exchange (`weather_topic`).
+- `Receive/Receive.cs` — consumer that declares a queue, binds one or more routing keys to the `weather_topic` exchange, and processes messages.
 
-Project: RabbitMq-Playground (Direct exchange example)
-This repository contains two small console apps demonstrating direct-exchange usage:
-- `Send`  a producer that publishes messages with a routing key.
-- `Receive`  a consumer that declares a queue, binds it to the `weather_direct` exchange with one or more routing keys, and processes messages.
+Official RabbitMQ documentation about Topic Exchanges
+
+- Topic exchanges tutorial: https://www.rabbitmq.com/tutorials/amqp-topics.html
+- Exchanges overview: https://www.rabbitmq.com/exchanges.html
+
+How the example works (short)
+
+- The publisher sends messages to the `weather_topic` exchange using routing keys (for example `us.east.rain`).
+- The consumer creates/declares a named queue, then binds it to `weather_topic` with one or more routing keys entered at runtime. Binding keys can include wildcards (`*` and `#`) as explained in the RabbitMQ docs linked above.
+- The consumer uses manual acknowledgements (`autoAck: false`) and `BasicQos` with a prefetch count of `1` so messages are processed one at a time.
+- If the consumer receives a message that contains the word `exception` it rejects that message and throws an error. If the message text can be parsed as an integer it sleeps for that many milliseconds to simulate work.
 
 Key implementation details (from `Receive/Receive.cs`)
+
 - Connection config uses default RabbitMQ host/port and credentials (`localhost:5672`, `guest/guest`).
-- The consumer asks for a queue name and routing keys (comma-separated).
+- The consumer prompts for a queue name and a comma-separated list of routing keys.
 - `channel.QueueDeclare(...)` creates the named queue (non-durable, non-exclusive, no auto-delete).
-- For each routing key provided the code does: `channel.QueueBind(queueName, "weather_direct", key)`.
+- For each routing key provided the code calls: `channel.QueueBind(queueName, "weather_topic", key)`.
 - If no routing keys are provided the queue is bound using an empty string key.
 - Prefetch set with `channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false)` to process one message at a time.
 - Consumer is `EventingBasicConsumer`:
-  - On `Received` it decodes message body with `UTF-8`.
-  - If the message contains the text `exception` it writes an error, calls `channel.BasicReject(ea.DeliveryTag, false)` (reject without requeue) and throws an exception.
-  - If the message is a parsable integer the consumer sleeps that many milliseconds (simulates work): `Thread.Sleep(delayTime)`.
-  - On successful processing the consumer sends `channel.BasicAck(ea.DeliveryTag, false)`.
+  - On `Received` it decodes the message body with UTF-8 and prints it.
+  - If the message contains `exception` it logs, rejects the message (no requeue) and throws an exception.
+  - If the message parses as an integer the handler sleeps that many milliseconds to simulate processing time.
+  - Otherwise it acknowledges the message with `channel.BasicAck(ea.DeliveryTag, false)`.
 
-Why important
-- `BasicAck` and `BasicReject(..., false)` ensure explicit acknowledgement and control over requeueing.
-- PrefetchCount = 1 ensures fair dispatch: a busy consumer won't receive more messages than it can process.
-- Binding by routing key demonstrates exact-match routing in direct exchanges.
+Why this matters
 
-How to run & test (concise)
-1. Ensure RabbitMQ is running locally (default management UI on 15672, broker on 5672).
-2. Open multiple terminals to simulate different consumers.
-3. In each consumer terminal:
-   - `cd Receive` then `dotnet run`.
-   - Enter a unique queue name (e.g., `qld`, `nsw`).
-   - Enter routing keys (comma-separated) � e.g., `sydney` or `brisbane`.
-4. In a producer terminal:
-   - `cd Send` then `dotnet run`.
-   - Enter routing key when prompted and then the message text.
-5. Expected behaviour:
-   - Only consumers whose queues are bound with the exact routing key receive the message.
-   - If a consumer sends a message `exception` the message will be rejected (not requeued) and the consumer throws an exception.
-   - Integer messages cause the consumer to sleep that many milliseconds (simulate work) before acknowledging.
+- Topic exchanges allow flexible routing using routing patterns and wildcards (`*` matches one word, `#` matches zero or more words). This makes them suitable for hierarchical routing schemes like `region.city.weather`.
+- Manual acks and reject semantics let consumers control retries and dead-lettering policies.
+- Prefetch count of `1` is useful to implement fair dispatch among multiple consumers.
 
-Notes / tips
-- Exchange name in code is `weather_direct`. The producer must publish to the same exchange with appropriate routing keys.
-- For durable/production usage set durable queues/exchanges and persistent messages.
-- Consider handling consumer exceptions gracefully (avoid throwing from the `Received` handler) and implement dead-lettering or retry if needed.
+Run instructions
 
-Minimal file references
-- `Receive/Receive.cs` � consumer implementation described above.
-- `Send/Send.cs` � producer; publishes messages to `weather_direct` with a specified routing key.
+1. Start a RabbitMQ broker on `localhost` (default port `5672`). Default credentials `guest`/`guest` are used by the samples.
+2. In one terminal run the receiver and follow prompts:
+   - `dotnet run --project Receive`
+   - Enter a queue name (for example `weather_queue`).
+   - Enter routing keys (comma separated), for example `us.*.rain,#.snow` or leave blank for binding the empty key.
+3. In another terminal run the sender:
+   - `dotnet run --project Send`
+   - Send messages with routing keys matching the consumer bindings.
 
-Links & short snippets
-- File links (relative, work in forks/branches):
-  - [Receive/Receive.cs](Receive/Receive.cs)
-  - [Send/Send.cs](Send/Send.cs)
+Repository code links (branch: `Topic-Exchange-Type-4`)
 
-- Quick handler excerpt (from `Receive/Receive.cs`):
-  ```csharp
-  // Receive/Receive.cs - message handler excerpt
-  var body = ea.Body.ToArray();
-  var message = Encoding.UTF8.GetString(body);
-  Console.WriteLine($" [x] Received {message}");
-  if (message.Contains("exception"))
-  {
-      channel.BasicReject(ea.DeliveryTag, false);
-      // handle error / notify / dead-letter
-  }
-  channel.BasicAck(ea.DeliveryTag, false);
-  ```
+- `Send` source: https://github.com/HeyHarshdeep/RabbitMq-Playground/blob/Topic-Exchange-Type-4/Send/Send.cs
+- `Receive` source: https://github.com/HeyHarshdeep/RabbitMq-Playground/blob/Topic-Exchange-Type-4/Receive/Receive.cs
 
-- Permalinks on GitHub (stable):
-  - Use `https://github.com/<owner>/<repo>/blob/<commit-sha>/Receive/Receive.cs#L10-L30` for permanent references.
-  - For convenience during development use branch links like `blob/<branch>`; prefer relative links inside the repo for README/docs.
-
-This document is intentionally concise � keep it at the repo root for quick reference.
+If you want additional examples of binding keys and which routing keys match them, or Docker commands to start RabbitMQ locally, tell me what to add.

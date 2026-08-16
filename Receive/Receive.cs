@@ -31,12 +31,12 @@ if (routingKeys.Any())
 {
     foreach (var key in routingKeys)
     {
-        channel.QueueBind(queueName, "weather_direct", key);
+        channel.QueueBind(queueName, "weather_topic", key);
     }
 }
 else
 {
-    channel.QueueBind(queueName, "weather_direct", string.Empty);
+    channel.QueueBind(queueName, "weather_topic", string.Empty);
 }
 
 channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);

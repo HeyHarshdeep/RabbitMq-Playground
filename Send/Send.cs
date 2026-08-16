@@ -13,13 +13,8 @@ var factory = new ConnectionFactory
 using var connection = factory.CreateConnection();
 using var channel = connection.CreateModel();
 
-//channel.QueueDeclare(queue: "hello",
-//    durable: false,
-//    exclusive: false,
-//    autoDelete: false,
-//    arguments: null);
-var exchangeName = "weather_direct";
-channel.ExchangeDeclare(exchangeName, ExchangeType.Direct);
+var exchangeName = "weather_topic";
+channel.ExchangeDeclare(exchangeName, ExchangeType.Topic);
 
 string? message = null;
 do

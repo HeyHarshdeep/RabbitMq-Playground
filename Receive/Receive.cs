@@ -14,12 +14,30 @@ var factory = new ConnectionFactory
 using var connection = factory.CreateConnection();
 using var channel = connection.CreateModel();
 
-// Ensure the queue exists (matches the sender)
-channel.QueueDeclare(queue: "hello",
+Console.WriteLine("Please enter queue name");
+var queueName = Console.ReadLine();
+
+channel.QueueDeclare(queue: queueName,
     durable: false,
     exclusive: false,
     autoDelete: false,
     arguments: null);
+
+Console.WriteLine("Enter Routing Keys");
+var routingKey = Console.ReadLine();
+var routingKeys = routingKey.Split(",", StringSplitOptions.RemoveEmptyEntries);
+
+if (routingKeys.Any())
+{
+    foreach (var key in routingKeys)
+    {
+        channel.QueueBind(queueName, "weather_direct", key);
+    }
+}
+else
+{
+    channel.QueueBind(queueName, "weather_direct", string.Empty);
+}
 
 channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
 
@@ -46,7 +64,7 @@ consumer.Received += (model, ea) =>
     Console.WriteLine($"Processed messaege {message}");
     channel.BasicAck(deliveryTag: ea.DeliveryTag, false);
 };
-channel.BasicConsume(queue: "hello",
+channel.BasicConsume(queue: queueName,
     autoAck: false,
     consumer: consumer);
 

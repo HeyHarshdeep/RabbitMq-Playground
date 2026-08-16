@@ -12,7 +12,7 @@ var factory = new ConnectionFactory
     Password = "guest"
 };
 using var connection = factory.CreateConnection();
-using var channel = connection.CreateModel();       
+using var channel = connection.CreateModel();
 
 // Ensure the queue exists (matches the sender)
 channel.QueueDeclare(queue: "hello",
@@ -29,9 +29,19 @@ consumer.Received += (model, ea) =>
     var body = ea.Body.ToArray();
     var message = Encoding.UTF8.GetString(body);
     Console.WriteLine($" [x] Received {message}");
+
+    if (message.Contains("exception"))
+    {
+        Console.WriteLine("Error in processing");
+        channel.BasicReject(ea.DeliveryTag, false);
+        throw new Exception("Error in processing");
+    }
+
+    Console.WriteLine($"Processed messaege {message}");
+    channel.BasicAck(deliveryTag: ea.DeliveryTag, false);
 };
 channel.BasicConsume(queue: "hello",
-    autoAck: true,
+    autoAck: false,
     consumer: consumer);
 
 Console.WriteLine(" Press [enter] to exit.");

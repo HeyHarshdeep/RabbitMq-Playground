@@ -13,34 +13,50 @@ var factory = new ConnectionFactory
 using var connection = factory.CreateConnection();
 using var channel = connection.CreateModel();
 
-//channel.QueueDeclare(queue: "hello",
-//    durable: false,
-//    exclusive: false,
-//    autoDelete: false,
-//    arguments: null);
-var exchangeName = "weather_direct";
-channel.ExchangeDeclare(exchangeName, ExchangeType.Direct);
+
+var exchangeName = "weather_headers";
+channel.ExchangeDeclare(exchangeName, ExchangeType.Headers);
 
 string? message = null;
+string? location = null;
+string? temperature = null;
+
 do
 {
-    Console.WriteLine("Enter Message. Press [enter] to exit.");
+    Console.WriteLine("Enter Message.");
     message = Console.ReadLine();
 
-    Console.WriteLine("Please enter your routing key");
-    var routingKey = Console.ReadLine();
+
+    Console.WriteLine("Enter Location");
+    location = Console.ReadLine();
+
+    Console.WriteLine("Enter Temperature");
+    temperature = Console.ReadLine();
+
 
     if (!string.IsNullOrEmpty(message))
-        SendMessage(channel, message, routingKey ?? string.Empty);
+        SendMessage(channel, message, location, temperature);
+
 } while (!string.IsNullOrEmpty(message));
 
-void SendMessage(IModel channel, string message, string routingKey)
+void SendMessage(IModel channel, string message, string? location, string? temperature)
 {
     var body = Encoding.UTF8.GetBytes(message);
+    var basicProps = channel.CreateBasicProperties();
+
+    // Only add headers that have values. Use byte[] for header values so they are encoded consistently.
+    var headers = new Dictionary<string, object>();
+    if (!string.IsNullOrEmpty(location))
+        headers.Add("location", Encoding.UTF8.GetBytes(location));
+    if (!string.IsNullOrEmpty(temperature))
+        headers.Add("temperature", Encoding.UTF8.GetBytes(temperature));
+
+    if (headers.Count > 0)
+        basicProps.Headers = headers;
 
     channel.BasicPublish(exchange: exchangeName,
-        routingKey: routingKey,
-        basicProperties: null,
+        routingKey: string.Empty,
+        basicProperties: basicProps,
         body: body);
     Console.WriteLine($" [x] Sent {message}");
 }

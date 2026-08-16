@@ -2,6 +2,7 @@
 using System.Text;
 using System;
 using RabbitMQ.Client.Events;
+using System.Threading;
 
 var factory = new ConnectionFactory
 {
@@ -17,27 +18,51 @@ using var channel = connection.CreateModel();
 Console.WriteLine("Please enter queue name");
 var queueName = Console.ReadLine();
 
+if (string.IsNullOrEmpty(queueName))
+{
+    Console.WriteLine("Queue name is required.");
+    return;
+}
+
 channel.QueueDeclare(queue: queueName,
     durable: false,
     exclusive: false,
     autoDelete: false,
     arguments: null);
 
-Console.WriteLine("Enter Routing Keys");
-var routingKey = Console.ReadLine();
-var routingKeys = routingKey.Split(",", StringSplitOptions.RemoveEmptyEntries);
+// Ensure the headers exchange exists before binding.
+var exchangeName = "weather_headers";
+channel.ExchangeDeclare(exchangeName, ExchangeType.Headers);
 
-if (routingKeys.Any())
+Console.WriteLine("Enter Header Match Type. It could be Any or All");
+var match = Console.ReadLine();
+if (string.IsNullOrEmpty(match))
+    match = "all";
+match = match.Trim().ToLowerInvariant();
+if (match != "any" && match != "all")
+    match = "all";
+
+Console.WriteLine("Enter Location");
+var location = Console.ReadLine();
+
+Console.WriteLine("Enter Temperature");
+var temperature = Console.ReadLine();
+
+
+var bindingHeaders = new Dictionary<string, object>()
 {
-    foreach (var key in routingKeys)
-    {
-        channel.QueueBind(queueName, "weather_direct", key);
-    }
-}
-else
-{
-    channel.QueueBind(queueName, "weather_direct", string.Empty);
-}
+    {"x-match", match },
+};
+
+// Use the same byte[] encoding for header values as the sender so matching works.
+if (!string.IsNullOrEmpty(location))
+    bindingHeaders.Add("location", Encoding.UTF8.GetBytes(location));
+if (!string.IsNullOrEmpty(temperature))
+    bindingHeaders.Add("temperature", Encoding.UTF8.GetBytes(temperature));
+
+// Bind the queue to the headers exchange with the provided headers to match.
+channel.QueueBind(queueName, exchangeName, string.Empty, bindingHeaders);
+
 
 channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
 

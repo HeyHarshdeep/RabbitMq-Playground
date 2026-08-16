@@ -1,82 +1,43 @@
-RabbitMQ  Direct Exchange (Compact Reference)
+Header Exchange demo (RabbitMQ)
 
 Overview
-- RabbitMQ is a message broker that routes messages from producers to consumers via exchanges and queues.
-- A direct exchange routes messages to queues based on exact matching of a routing key.
 
-Direct exchange (quick summary)
-- Exchange type: `direct`.
-- Routing behaviour: messages published with routing key `k` are delivered to all queues bound to the exchange with the same routing key `k`.
-- Useful for: targeted delivery, multiple queues listening for specific keys (e.g., `sydney`, `brisbane`).
+This repository contains a minimal demo showing how RabbitMQ "headers" exchanges work using two small .NET console applications:
 
-Project: RabbitMq-Playground (Direct exchange example)
-This repository contains two small console apps demonstrating direct-exchange usage:
-- `Send`  a producer that publishes messages with a routing key.
-- `Receive`  a consumer that declares a queue, binds it to the `weather_direct` exchange with one or more routing keys, and processes messages.
+- `Send` — publishes messages to a headers exchange named `weather_headers`. It attaches two headers to each message: `location` and `temperature` (both encoded as UTF-8 byte arrays).
+- `Receive` — declares a queue, binds it to the `weather_headers` exchange with a set of binding headers and an `x-match` rule (`any` or `all`), and consumes messages using manual acknowledgements.
 
-Key implementation details (from `Receive/Receive.cs`)
-- Connection config uses default RabbitMQ host/port and credentials (`localhost:5672`, `guest/guest`).
-- The consumer asks for a queue name and routing keys (comma-separated).
-- `channel.QueueDeclare(...)` creates the named queue (non-durable, non-exclusive, no auto-delete).
-- For each routing key provided the code does: `channel.QueueBind(queueName, "weather_direct", key)`.
-- If no routing keys are provided the queue is bound using an empty string key.
-- Prefetch set with `channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false)` to process one message at a time.
-- Consumer is `EventingBasicConsumer`:
-  - On `Received` it decodes message body with `UTF-8`.
-  - If the message contains the text `exception` it writes an error, calls `channel.BasicReject(ea.DeliveryTag, false)` (reject without requeue) and throws an exception.
-  - If the message is a parsable integer the consumer sleeps that many milliseconds (simulates work): `Thread.Sleep(delayTime)`.
-  - On successful processing the consumer sends `channel.BasicAck(ea.DeliveryTag, false)`.
+What is a headers exchange?
 
-Why important
-- `BasicAck` and `BasicReject(..., false)` ensure explicit acknowledgement and control over requeueing.
-- PrefetchCount = 1 ensures fair dispatch: a busy consumer won't receive more messages than it can process.
-- Binding by routing key demonstrates exact-match routing in direct exchanges.
+A headers exchange routes messages based on message headers instead of the routing key. When binding a queue to a headers exchange you provide a map of header keys and values plus an `x-match` policy:
 
-How to run & test (concise)
-1. Ensure RabbitMQ is running locally (default management UI on 15672, broker on 5672).
-2. Open multiple terminals to simulate different consumers.
-3. In each consumer terminal:
-   - `cd Receive` then `dotnet run`.
-   - Enter a unique queue name (e.g., `qld`, `nsw`).
-   - Enter routing keys (comma-separated) � e.g., `sydney` or `brisbane`.
-4. In a producer terminal:
-   - `cd Send` then `dotnet run`.
-   - Enter routing key when prompted and then the message text.
-5. Expected behaviour:
-   - Only consumers whose queues are bound with the exact routing key receive the message.
-   - If a consumer sends a message `exception` the message will be rejected (not requeued) and the consumer throws an exception.
-   - Integer messages cause the consumer to sleep that many milliseconds (simulate work) before acknowledging.
+- `x-match = all` — route the message only when all provided header keys match the values on the message.
+- `x-match = any` — route the message when any one of the provided header key/value pairs matches.
 
-Notes / tips
-- Exchange name in code is `weather_direct`. The producer must publish to the same exchange with appropriate routing keys.
-- For durable/production usage set durable queues/exchanges and persistent messages.
-- Consider handling consumer exceptions gracefully (avoid throwing from the `Received` handler) and implement dead-lettering or retry if needed.
+Important: header matching is performed against the value representation stored on the message. In this sample both sender and receiver use UTF-8 byte arrays for header values to ensure consistent matching.
 
-Minimal file references
-- `Receive/Receive.cs` � consumer implementation described above.
-- `Send/Send.cs` � producer; publishes messages to `weather_direct` with a specified routing key.
+How the code works (brief)
 
-Links & short snippets
-- File links (relative, work in forks/branches):
-  - [Receive/Receive.cs](Receive/Receive.cs)
-  - [Send/Send.cs](Send/Send.cs)
+- `Send` prompts for `Message`, `Location`, `Temperature`. It creates message properties and, when headers are provided, adds `location` and `temperature` headers as `byte[]` (UTF-8) and publishes to the `weather_headers` exchange.
+- `Receive` prompts for a queue name, `x-match` (Any/All), `Location`, and `Temperature`. It declares the queue, ensures the `weather_headers` exchange exists, builds a binding header map (encoding values as UTF-8 byte arrays to match the sender), and calls `QueueBind(...)` with that header map.
+- The consumer processes messages with manual acks. If message body contains the literal `exception`, the message is rejected (and an exception is thrown) to demonstrate error handling. If the message body parses as an integer the consumer sleeps for that many milliseconds to simulate work.
 
-- Quick handler excerpt (from `Receive/Receive.cs`):
-  ```csharp
-  // Receive/Receive.cs - message handler excerpt
-  var body = ea.Body.ToArray();
-  var message = Encoding.UTF8.GetString(body);
-  Console.WriteLine($" [x] Received {message}");
-  if (message.Contains("exception"))
-  {
-      channel.BasicReject(ea.DeliveryTag, false);
-      // handle error / notify / dead-letter
-  }
-  channel.BasicAck(ea.DeliveryTag, false);
-  ```
+How to run
 
-- Permalinks on GitHub (stable):
-  - Use `https://github.com/<owner>/<repo>/blob/<commit-sha>/Receive/Receive.cs#L10-L30` for permanent references.
-  - For convenience during development use branch links like `blob/<branch>`; prefer relative links inside the repo for README/docs.
+1. Ensure RabbitMQ is running on `localhost:5672` with guest/guest credentials (or edit the connection settings in source files).
+2. From the solution root run the apps separately:
+   - `dotnet run --project Receive` (follow prompts to create a queue and binding)
+   - `dotnet run --project Send` (publish messages and headers)
 
-This document is intentionally concise � keep it at the repo root for quick reference.
+Examples
+
+- Receiver: `x-match = all`, `location = nyc`, `temperature = 30` -> only messages containing both headers with those exact values will be routed to the queue.
+- Receiver: `x-match = any`, `location = london` -> messages that include `location = london` OR the other configured header will be routed.
+
+Notes and caveats
+
+- Header values must match exactly (same encoding and byte representation). This demo encodes header values as UTF-8 byte arrays on both sides to make matching predictable.
+- This is educational sample code, not production code. It uses console input and simple error handling.
+- For more advanced scenarios consider explicit header typing or a consistent serialization strategy.
+
+If you want, I can add examples demonstrating failing/succeeding matches or a small helper to centralize header encoding and parsing.
